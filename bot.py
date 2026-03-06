@@ -4,13 +4,13 @@ import json
 import os
 import hashlib
 import time
+import re
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 CHANNEL_ID = "-1002499768751"
 
 MAX_POSTS = 5
-MAX_PAGES = 50
 
 forums = {
     "videos": "https://cultogore.net/forums/videos-gore.3/",
@@ -19,11 +19,11 @@ forums = {
 
 PUBLISHED_FILE = "published_topics.json"
 BLOCKED_FILE = "blocked_topics.json"
+STATE_FILE = "state.json"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
-
 
 # =============================
 # TELEGRAM
@@ -41,91 +41,143 @@ def send_telegram(text):
 
     requests.post(url, data=data)
 
-
 # =============================
-# JSON HELPERS
+# JSON
 # =============================
 
 def load_json(file):
 
     if not os.path.exists(file):
 
-        with open(file, "w") as f:
-            json.dump([], f)
+        with open(file,"w") as f:
+            json.dump([],f)
 
         return set()
 
-    with open(file, "r") as f:
+    with open(file,"r") as f:
         return set(json.load(f))
 
 
-def save_json(file, data):
+def save_json(file,data):
 
-    with open(file, "w") as f:
-        json.dump(list(data), f, indent=2)
+    with open(file,"w") as f:
+        json.dump(list(data),f,indent=2)
+
+
+# =============================
+# STATE
+# =============================
+
+def load_state():
+
+    if not os.path.exists(STATE_FILE):
+
+        state = {"page":1}
+
+        with open(STATE_FILE,"w") as f:
+            json.dump(state,f)
+
+        return state
+
+    with open(STATE_FILE,"r") as f:
+        return json.load(f)
+
+
+def save_state(state):
+
+    with open(STATE_FILE,"w") as f:
+        json.dump(state,f)
 
 
 # =============================
 # HASH
 # =============================
 
-def create_hash(title, link):
+def create_hash(title,link):
 
-    return hashlib.md5((title + link).encode()).hexdigest()
+    return hashlib.md5((title+link).encode()).hexdigest()
+
+
+# =============================
+# LIMPIAR TITULO
+# =============================
+
+def clean_title(title):
+
+    title = title.strip()
+
+    # eliminar "Featured"
+    title = re.sub(r"^Featured\s*","",title,flags=re.I)
+
+    # eliminar prefijo de foro
+    title = re.sub(r"^🔪\s*Ejecuciones, Muertes y Asesinatos\s*","",title)
+
+    return title.strip()
 
 
 # =============================
 # SCRAPER
 # =============================
 
-def get_topics(url):
+def get_topics(url,start_page):
 
-    topics = []
+    topics=[]
 
-    for page in range(1, MAX_PAGES + 1):
+    page=start_page
 
-        if page == 1:
-            page_url = url
+    while True:
+
+        if page==1:
+            page_url=url
         else:
-            page_url = f"{url}page-{page}"
+            page_url=f"{url}page-{page}"
 
-        r = requests.get(page_url, headers=HEADERS, timeout=20)
+        print("Escaneando pagina:",page_url)
 
-        soup = BeautifulSoup(r.text, "html.parser")
+        r=requests.get(page_url,headers=HEADERS,timeout=20)
 
-        items = soup.select(".structItem")
+        soup=BeautifulSoup(r.text,"html.parser")
+
+        items=soup.select(".structItem")
 
         if not items:
             break
 
         for item in items:
 
-            link_tag = item.select_one(".structItem-title a")
+            link_tag=item.select_one(".structItem-title a")
 
             if not link_tag:
                 continue
 
-            title = link_tag.text.strip()
+            title=link_tag.get_text(" ",strip=True)
 
-            href = link_tag["href"]
+            title=clean_title(title)
+
+            href=link_tag["href"]
 
             if not href.startswith("http"):
-                href = "https://cultogore.net" + href
+                href="https://cultogore.net"+href
 
-            author_tag = item.select_one(".username")
+            author_tag=item.select_one(".username")
 
-            author = author_tag.text.strip() if author_tag else "Autor desconocido"
+            author=author_tag.text.strip() if author_tag else "Autor"
 
             topics.append({
-                "title": title,
-                "link": href,
-                "author": author,
-                "hash": create_hash(title, href)
+                "title":title,
+                "link":href,
+                "author":author,
+                "hash":create_hash(title,href)
             })
 
-        time.sleep(1)
+        page+=1
 
-    return topics
+        time.sleep(0.5)
+
+        if len(topics)>=100:
+            break
+
+    return topics,page
 
 
 # =============================
@@ -134,18 +186,21 @@ def get_topics(url):
 
 def main():
 
-    print("Iniciando bot...")
+    print("Iniciando bot")
 
-    published = load_json(PUBLISHED_FILE)
-    blocked = load_json(BLOCKED_FILE)
+    published=load_json(PUBLISHED_FILE)
 
-    new_topics = []
+    blocked=load_json(BLOCKED_FILE)
 
-    for name, forum in forums.items():
+    state=load_state()
 
-        print("Escaneando foro:", name)
+    start_page=state["page"]
 
-        topics = get_topics(forum)
+    new_topics=[]
+
+    for name,forum in forums.items():
+
+        topics,next_page=get_topics(forum,start_page)
 
         for t in topics:
 
@@ -157,30 +212,32 @@ def main():
 
             new_topics.append(t)
 
-    print("Temas pendientes:", len(new_topics))
+        state["page"]=next_page
 
-    count = 0
+    print("Temas encontrados:",len(new_topics))
+
+    count=0
 
     for t in new_topics[:MAX_POSTS]:
 
-        message = f"""📹 {t['title']}
+        msg=f"""📹 {t['title']}
 🔗 {t['link']}
 👤 Publicado por: {t['author']}"""
 
-        send_telegram(message)
+        send_telegram(msg)
 
         published.add(t["hash"])
 
-        count += 1
-
-        print("Publicado:", t["title"])
+        count+=1
 
         time.sleep(2)
 
-    save_json(PUBLISHED_FILE, published)
+    save_json(PUBLISHED_FILE,published)
 
-    print("Publicados en esta ejecución:", count)
+    save_state(state)
+
+    print("Publicados:",count)
 
 
-if __name__ == "__main__":
+if __name__=="__main__":
     main()
