@@ -25,3 +25,11 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         run: python bot.py
+
+      - name: Guardar base de datos
+        run: |
+          git config --global user.name "bot"
+          git config --global user.email "bot@github.com"
+          git add published_topics.json
+          git commit -m "update database" || echo "no changes"
+          git push
