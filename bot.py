@@ -4,15 +4,10 @@ import json
 import os
 import hashlib
 import time
-import re
-
-# =============================
-# CONFIGURACIÓN
-# =============================
 
 import os
-
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+
 CHANNEL_ID = "-1002499768751"
 
 MAX_POSTS = 5
@@ -29,6 +24,7 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
 
+
 # =============================
 # TELEGRAM
 # =============================
@@ -43,10 +39,7 @@ def send_telegram(text):
         "disable_web_page_preview": False
     }
 
-    try:
-        requests.post(url, data=data, timeout=10)
-    except:
-        pass
+    requests.post(url, data=data)
 
 
 # =============================
@@ -55,20 +48,20 @@ def send_telegram(text):
 
 def load_db():
 
-    if os.path.exists(DB_FILE):
+    if not os.path.exists(DB_FILE):
 
-        try:
-            with open(DB_FILE, "r", encoding="utf-8") as f:
-                return set(json.load(f))
-        except:
-            return set()
+        with open(DB_FILE, "w") as f:
+            json.dump([], f)
 
-    return set()
+        return set()
+
+    with open(DB_FILE, "r") as f:
+        return set(json.load(f))
 
 
 def save_db(data):
 
-    with open(DB_FILE, "w", encoding="utf-8") as f:
+    with open(DB_FILE, "w") as f:
         json.dump(list(data), f, indent=2)
 
 
@@ -82,7 +75,7 @@ def create_hash(title, link):
 
 
 # =============================
-# OBTENER TEMAS
+# SCRAPER
 # =============================
 
 def get_topics(url):
@@ -96,44 +89,39 @@ def get_topics(url):
         else:
             page_url = f"{url}page-{page}"
 
-        try:
+        r = requests.get(page_url, headers=HEADERS, timeout=20)
 
-            r = requests.get(page_url, headers=HEADERS, timeout=10)
+        soup = BeautifulSoup(r.text, "html.parser")
 
-            soup = BeautifulSoup(r.text, "html.parser")
+        items = soup.select(".structItem")
 
-            items = soup.find_all("div", class_="structItem")
+        if not items:
+            break
 
-            if not items:
-                break
+        for item in items:
 
-            for i in items:
+            link_tag = item.select_one(".structItem-title a")
 
-                link = i.select_one(".structItem-title a")
+            if not link_tag:
+                continue
 
-                if not link:
-                    continue
+            title = link_tag.text.strip()
 
-                title = link.text.strip()
+            href = link_tag["href"]
 
-                href = link["href"]
+            if not href.startswith("http"):
+                href = "https://cultogore.net" + href
 
-                if not href.startswith("http"):
-                    href = "https://cultogore.net" + href
+            author_tag = item.select_one(".username")
 
-                author_tag = i.select_one(".username")
+            author = author_tag.text.strip() if author_tag else "Autor desconocido"
 
-                author = author_tag.text.strip() if author_tag else "Autor"
-
-                topics.append({
-                    "title": title,
-                    "link": href,
-                    "author": author,
-                    "hash": create_hash(title, href)
-                })
-
-        except:
-            continue
+            topics.append({
+                "title": title,
+                "link": href,
+                "author": author,
+                "hash": create_hash(title, href)
+            })
 
         time.sleep(1)
 
@@ -171,10 +159,8 @@ def main():
     for t in new_topics[:MAX_POSTS]:
 
         message = f"""📹 {t['title']}
-
 🔗 {t['link']}
-
-👤 Autor: {t['author']}"""
+👤 Publicado por: {t['author']}"""
 
         send_telegram(message)
 
@@ -190,8 +176,6 @@ def main():
 
     print("Publicados en esta ejecución:", count)
 
-
-# =============================
 
 if __name__ == "__main__":
     main()
