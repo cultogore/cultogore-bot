@@ -10,26 +10,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Descargar repositorio
+      - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Instalar Python
+      - name: Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
 
-      - name: Instalar dependencias
+      - name: Install
         run: pip install -r requirements.txt
 
-      - name: Ejecutar bot
+      - name: Run bot
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         run: python bot.py
 
-      - name: Guardar base de datos
+      - name: Save database
         run: |
           git config --global user.name "bot"
           git config --global user.email "bot@github.com"
-          git add published_topics.json
+          git add .
           git commit -m "update database" || echo "no changes"
           git push
