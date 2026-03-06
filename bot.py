@@ -10,7 +10,9 @@ import re
 # CONFIGURACIÓN
 # =============================
 
-BOT_TOKEN = "7525964751:AAFYim0qexbzSmwTAt5CWH27-kGZ6mVg8s4"
+import os
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = "-1002499768751"
 
 MAX_POSTS = 5
