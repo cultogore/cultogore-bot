@@ -150,9 +150,16 @@ def get_topics(url,start_page):
             if not link_tag:
                 continue
 
-            title=link_tag.get_text(" ",strip=True)
+            # Obtener solo el texto del título sin prefijo
+            title = link_tag.get_text(strip=True)
 
-            title=clean_title(title)
+            # Eliminar prefijos comunes del foro
+            title = re.sub(r"^🔪\s*Ejecuciones, Muertes y Asesinatos\s*", "", title)
+
+            # eliminar Featured
+            title = re.sub(r"^Featured\s*", "", title, flags=re.I)
+
+            title = title.strip()
 
             href=link_tag["href"]
 
