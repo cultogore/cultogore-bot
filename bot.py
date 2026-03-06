@@ -5,7 +5,6 @@ import os
 import hashlib
 import time
 
-import os
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 CHANNEL_ID = "-1002499768751"
@@ -18,7 +17,8 @@ forums = {
     "imagenes": "https://cultogore.net/forums/imagenes-gore.20/"
 }
 
-DB_FILE = "published_topics.json"
+PUBLISHED_FILE = "published_topics.json"
+BLOCKED_FILE = "blocked_topics.json"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
@@ -43,25 +43,25 @@ def send_telegram(text):
 
 
 # =============================
-# BASE DE DATOS
+# JSON HELPERS
 # =============================
 
-def load_db():
+def load_json(file):
 
-    if not os.path.exists(DB_FILE):
+    if not os.path.exists(file):
 
-        with open(DB_FILE, "w") as f:
+        with open(file, "w") as f:
             json.dump([], f)
 
         return set()
 
-    with open(DB_FILE, "r") as f:
+    with open(file, "r") as f:
         return set(json.load(f))
 
 
-def save_db(data):
+def save_json(file, data):
 
-    with open(DB_FILE, "w") as f:
+    with open(file, "w") as f:
         json.dump(list(data), f, indent=2)
 
 
@@ -129,14 +129,15 @@ def get_topics(url):
 
 
 # =============================
-# PROGRAMA PRINCIPAL
+# MAIN
 # =============================
 
 def main():
 
     print("Iniciando bot...")
 
-    published = load_db()
+    published = load_json(PUBLISHED_FILE)
+    blocked = load_json(BLOCKED_FILE)
 
     new_topics = []
 
@@ -148,9 +149,13 @@ def main():
 
         for t in topics:
 
-            if t["hash"] not in published:
+            if t["hash"] in published:
+                continue
 
-                new_topics.append(t)
+            if t["hash"] in blocked:
+                continue
+
+            new_topics.append(t)
 
     print("Temas pendientes:", len(new_topics))
 
@@ -172,7 +177,7 @@ def main():
 
         time.sleep(2)
 
-    save_db(published)
+    save_json(PUBLISHED_FILE, published)
 
     print("Publicados en esta ejecución:", count)
 
