@@ -4,13 +4,12 @@ import json
 import os
 import hashlib
 import time
-import re
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 CHANNEL_ID = "-1002499768751"
 
-MAX_POSTS = 5
+MAX_POSTS = 1
 
 forums = {
     "videos": "https://cultogore.net/forums/videos-gore.3/",
@@ -99,23 +98,6 @@ def create_hash(title,link):
 
 
 # =============================
-# LIMPIAR TITULO
-# =============================
-
-def clean_title(title):
-
-    title = title.strip()
-
-    # eliminar "Featured"
-    title = re.sub(r"^Featured\s*","",title,flags=re.I)
-
-    # eliminar prefijo de foro
-    title = re.sub(r"^🔪\s*Ejecuciones, Muertes y Asesinatos\s*","",title)
-
-    return title.strip()
-
-
-# =============================
 # SCRAPER
 # =============================
 
@@ -132,7 +114,7 @@ def get_topics(url,start_page):
         else:
             page_url=f"{url}page-{page}"
 
-        print("Escaneando pagina:",page_url)
+        print("Escaneando:",page_url)
 
         r=requests.get(page_url,headers=HEADERS,timeout=20)
 
@@ -150,16 +132,12 @@ def get_topics(url,start_page):
             if not link_tag:
                 continue
 
-            # Obtener solo el texto del título sin prefijo
-            title = link_tag.get_text(strip=True)
+            # eliminar todos los prefijos
+            for label in link_tag.select(".label"):
+                label.decompose()
 
-            # Eliminar prefijos comunes del foro
-            title = re.sub(r"^🔪\s*Ejecuciones, Muertes y Asesinatos\s*", "", title)
-
-            # eliminar Featured
-            title = re.sub(r"^Featured\s*", "", title, flags=re.I)
-
-            title = title.strip()
+            # obtener título limpio
+            title=link_tag.get_text(strip=True)
 
             href=link_tag["href"]
 
@@ -227,15 +205,19 @@ def main():
 
     for t in new_topics[:MAX_POSTS]:
 
-        msg=f"""📹 {t['title']}
-🔗 {t['link']}
-👤 Publicado por: {t['author']}"""
+        message=(
+            f"📹 {t['title']}\n"
+            f"🔗 {t['link']}\n"
+            f"👤 Publicado por: {t['author']}"
+        )
 
-        send_telegram(msg)
+        send_telegram(message)
 
         published.add(t["hash"])
 
         count+=1
+
+        print("Publicado:",t["title"])
 
         time.sleep(2)
 
