@@ -9,7 +9,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 CHANNEL_ID = "-1002499768751"
 
-MAX_POSTS = 1
+MAX_POSTS = 5
 
 forums = {
     "videos": "https://cultogore.net/forums/videos-gore.3/",
